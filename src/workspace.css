@@ -212,6 +212,7 @@ svg {
 .account-field input,
 .account-field select,
 .account-field textarea,
+.account-input,
 .ui-input {
   width: 100%;
   min-height: 43px;
@@ -228,11 +229,13 @@ svg {
 }
 .dark .account-field input,
 .dark .account-field select,
-.dark .account-field textarea {
+.dark .account-field textarea,
+.dark .account-input {
   background: var(--surface-soft);
   color: var(--ink);
   border-color: var(--line);
 }
+.account-input::placeholder,
 .account-field input::placeholder {
   color: var(--muted);
   opacity: 0.8;
@@ -240,6 +243,7 @@ svg {
 .account-field input:focus,
 .account-field select:focus,
 .account-field textarea:focus,
+.account-input:focus,
 .ui-input:focus {
   border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(0,63,138,0.1);
