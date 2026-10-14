@@ -100,7 +100,7 @@ export default function EmployeesView({
     const ob = emp.onboarding || emptyOnboarding();
     const esc = (v: string) => v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
     const rows: [string, string][] = [
-      ["Employee", `${emp.name} (${emp.id})`],
+      ["Employee", emp.name],
       ["Role", `${emp.role}, ${emp.department}`],
       ["Hire date", emp.hireDate],
       ["Legal name", [ob.firstName, ob.middleName, ob.lastName].filter(Boolean).join(" ")],
@@ -245,9 +245,6 @@ export default function EmployeesView({
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white">
                   {selectedEmp.name}
                 </h3>
-                <span className="text-xs text-slate-500 font-medium font-mono block mt-0.5 break-all">
-                  {selectedEmp.id}
-                </span>
                 <span className="text-slate-500 text-xs font-semibold block mt-1">
                   {selectedEmp.role}
                 </span>
