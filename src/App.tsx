@@ -16,6 +16,7 @@ import {
 import { api, ApiError } from "./api";
 import { WorkspaceShell } from "./components/WorkspaceShell";
 import { SessionUser, WorkspaceState } from "./types";
+import { awaitingVerification } from "./onboarding";
 import {
   AuthView,
   ErrorMessage,
@@ -26,6 +27,7 @@ const DashboardView = lazy(() => import("./components/modules/DashboardView"));
 const EmployeesView = lazy(() => import("./components/modules/EmployeesView"));
 const LeavesView = lazy(() => import("./components/modules/LeavesView"));
 const SuiteView = lazy(() => import("./components/suite/SuiteView"));
+const MyProfileView = lazy(() => import("./components/modules/MyProfileView"));
 const DocsView = lazy(() => import("./components/modules/DocsView"));
 const IDCardView = lazy(() => import("./components/IDCardView"));
 const RecruitmentView = lazy(
@@ -41,6 +43,7 @@ const EmailHubView = lazy(() => import("./components/modules/EmailHubView"));
 const navigation = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard, staff: false },
   { id: "employees", label: "Employees", icon: Users, staff: true },
+  { id: "profile", label: "My profile", icon: Users, staff: false },
   { id: "leaves", label: "Leave & attendance", icon: Calendar, staff: false },
   {
     id: "payroll",
@@ -65,6 +68,13 @@ export default function App() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [tab, setTab] = useState("dashboard");
+  const [dismissed, setDismissed] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("hrstudio-dismissed-notices") || "[]");
+    } catch {
+      return [];
+    }
+  });
   const [theme, setTheme] = useState(
     () => localStorage.getItem("hrstudio-theme") || "light",
   );
@@ -210,6 +220,7 @@ export default function App() {
     allowed = navigation.filter(
       (item) =>
         (staff || !item.staff) &&
+        (item.id !== "profile" || (!staff && !!user.employeeId)) &&
         (!user.demo || item.id !== "emailhub") &&
         (!workspace.company.suite ||
           ![
@@ -223,9 +234,39 @@ export default function App() {
           ].includes(item.id) ||
           workspace.company.suite.enabledModules.includes(item.id)),
     );
-  const currentTab = allowed.some((item) => item.id === tab)
-    ? tab
-    : "dashboard";
+  const ownEmployee = !staff
+    ? (workspace.employees as any[]).find((e) => e.id === user.employeeId)
+    : undefined;
+  const saveOwnDetails = (onboarding: any, version: number) =>
+    mutate("/account/onboarding", "PATCH", { onboarding, version });
+  const notices = staff
+    ? (workspace.employees as any[]).flatMap((emp) => {
+        const out: { id: string; title: string; message: string; target: string }[] = [];
+        const waiting = awaitingVerification(emp.onboarding);
+        if (waiting.length) {
+          const id = `${emp.id}:await:${waiting.join("")}`;
+          if (!dismissed.includes(id))
+            out.push({ id, title: "Awaiting verification", message: `${emp.name} submitted ${waiting.join(" and ")}.`, target: "employees" });
+        }
+        const v = emp.onboarding?.verification;
+        if (v?.aadhaar === "Verified" && v?.pan === "Verified" && !dismissed.includes(emp.id))
+          out.push({ id: emp.id, title: "Identity verification complete", message: `${emp.name}'s Aadhaar and PAN are both verified.`, target: "employees" });
+        return out;
+      })
+    : [];
+  function dismissNotice(id: string) {
+    const next = [...dismissed, id];
+    setDismissed(next);
+    try {
+      localStorage.setItem("hrstudio-dismissed-notices", JSON.stringify(next));
+    } catch {}
+  }
+  const gated = !!ownEmployee && !ownEmployee.onboarding;
+  const currentTab = gated
+    ? "gate"
+    : allowed.some((item) => item.id === tab)
+      ? tab
+      : "dashboard";
   const {
     employees,
     leaves,
@@ -245,6 +286,9 @@ export default function App() {
   const navigate = (id: string) => setTab(id === "idcards" ? "idcard" : id);
   return (
     <WorkspaceShell
+      notices={notices}
+      onNotice={() => navigate("employees")}
+      onDismissNotice={dismissNotice}
       user={user}
       company={company}
       items={allowed}
@@ -314,6 +358,17 @@ export default function App() {
               staff={staff}
             />
           )}
+          {gated && ownEmployee ? (
+            <MyProfileView gate employee={ownEmployee} onSave={saveOwnDetails} />
+          ) : null}
+          {ownEmployee && ownEmployee.onboarding && currentTab === "profile" && (
+            <MyProfileView
+              employee={ownEmployee}
+              onSave={saveOwnDetails}
+              documents={documents}
+              onUpload={(data) => mutate("/documents", "POST", data)}
+            />
+          )}
           {currentTab === "employees" && (
             <EmployeesView
               employees={employees}
@@ -322,6 +377,8 @@ export default function App() {
               onAddEmployee={(data) => create("employees", data)}
               onUpdateEmployee={(data) => update("employees", data.id, data)}
               onDeleteEmployee={(id) => remove("employees", id)}
+              documents={staff ? documents : []}
+              onAddDocument={(data) => mutate("/documents", "POST", data)}
             />
           )}
           {currentTab === "leaves" && (

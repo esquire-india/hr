@@ -691,3 +691,49 @@ test("registration can be closed and authentication attempts are rate limited", 
   const response = await client.request("/auth/login", "POST", {}, 429);
   assert.ok(response.response.headers.has("retry-after"));
 });
+test("employees add their own documents and onboarding details but cannot change or remove them", async () => {
+  const f = await fixture(),
+    a = await owner(f);
+  const own = (
+    await a.client.request("/records/employees", "POST", employee("self@example.test"), 201)
+  ).data;
+  const other = (
+    await a.client.request("/records/employees", "POST", employee("peer@example.test"), 201)
+  ).data;
+  const { client } = await teamAccount(f, a.client, own);
+  const pdf = Buffer.from("%PDF-1.4 test").toString("base64");
+  const upload = (extra: object) => ({
+    name: "pan.pdf",
+    category: "ID Proof",
+    mimeType: "application/pdf",
+    contentBase64: pdf,
+    ...extra,
+  });
+  // A spoofed employeeId is ignored: the file lands on the caller's own record.
+  const doc = (await client.request("/documents", "POST", upload({ employeeId: other.id }), 201)).data;
+  assert.equal(doc.employeeId, own.id);
+  await client.request("/documents", "POST", upload({ category: "Contract" }), 400);
+  await client.request("/documents", "POST", upload({ mimeType: "text/plain" }), 400);
+  await client.request(`/records/documents/${doc.id}`, "DELETE", { version: doc.version }, 403);
+  await client.request(`/records/documents/${doc.id}`, "PATCH", { version: doc.version, name: "x" }, 403);
+
+  const details = {
+    firstName: "Asha", lastName: "Rao", gender: "Female", dob: "1995-04-02",
+    mobile: "9876543210", currentAddress: "12 MG Road", currentPin: "411001",
+    emergency: [{ name: "Ravi Rao", relation: "Father", phone: "9123456780" }],
+    pan: "ABCPE1234F", aadhaar: "", verification: { pan: "Verified", aadhaar: "Verified" },
+  };
+  const state = () => client.request("/state").then((r) => r.data.employees[0]);
+  await client.request("/account/onboarding", "PATCH", { version: (await state()).version, onboarding: details }, 400);
+  const saved = (
+    await client.request(
+      "/account/onboarding",
+      "PATCH",
+      { version: (await state()).version, onboarding: { ...details, aadhaar: "234567890124" } },
+      200,
+    )
+  ).data;
+  // Employees cannot self-verify.
+  assert.equal(saved.onboarding.verification.pan, "Pending");
+  assert.equal(saved.onboarding.verification.aadhaar, "Pending");
+});

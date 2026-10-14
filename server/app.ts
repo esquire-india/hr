@@ -17,12 +17,14 @@ import {
 } from "./auth";
 import {
   choice,
+  cleanOnboarding,
   companySettings,
   email,
   password,
   text,
   validateRecord,
 } from "./validation";
+import { missingRequired } from "../src/onboarding";
 import { evaluateResume, type Mail } from "./integrations";
 import { registerSuite } from "./suite";
 import { registerIntegrationEvents } from "./integration-events";
@@ -503,6 +505,36 @@ export function createApp(store: Store, options: Options = {}) {
       res.json({ ok: true });
     }),
   );
+  app.patch(
+    "/api/account/onboarding",
+    route(async (req, res) => {
+      const actor: Actor = res.locals.actor;
+      if (!actor.employeeId)
+        throw new HttpError(400, "This account is not linked to an employee profile.");
+      const existing = await store.get(actor.orgId, "employees", actor.employeeId);
+      const body = req.body.onboarding || {};
+      const before = existing.onboarding?.verification;
+      // Verification is an HR decision: keep it unless the number itself changed.
+      body.verification = {
+        panNote: before?.panNote || "",
+        aadhaarNote: before?.aadhaarNote || "",
+        pan: before && existing.onboarding.pan === String(body.pan || "").trim().toUpperCase() ? before.pan : "Pending",
+        aadhaar: before && existing.onboarding.aadhaar === String(body.aadhaar || "").replace(/\D/g, "") ? before.aadhaar : "Pending",
+      };
+      const missing = missingRequired(cleanOnboarding(body));
+      if (missing.length)
+        throw new HttpError(400, `Complete: ${missing.join(", ")}.`);
+      res.json(
+        await store.save(
+          actor,
+          "employees",
+          await validateRecord(store, actor, "employees", { ...existing, onboarding: body }, existing),
+          existing.id,
+          req.body.version,
+        ),
+      );
+    }),
+  );
   app.get(
     "/api/audit",
     requireStaff,
@@ -571,24 +603,35 @@ export function createApp(store: Store, options: Options = {}) {
   );
   app.post(
     "/api/documents",
-    requireStaff,
     route(async (req, res) => {
       const actor: Actor = res.locals.actor,
-        emp = await store.get(
-          actor.orgId,
-          "employees",
-          text(req.body.employeeId, "Employee"),
-        );
+        own = actor.accessRole === "employee";
+      // Employees may add files to their own record only; they cannot edit or remove them later.
+      if (own && !actor.employeeId)
+        throw new HttpError(403, "This account is not linked to an employee profile.");
+      const emp = await store.get(
+        actor.orgId,
+        "employees",
+        own ? actor.employeeId! : text(req.body.employeeId, "Employee"),
+      );
+      if (
+        own &&
+        (await store.list(actor.orgId, "documents")).filter(
+          (d: any) => d.employeeId === emp.id,
+        ).length >= 20
+      )
+        throw new HttpError(400, "You have reached the limit of 20 documents. Ask HR to remove old files.");
       const name = text(req.body.name, "Filename", 200).replace(
         /[\\/\r\n]/g,
         "_",
       );
-      const mimeType = choice(req.body.mimeType, "file type", [
-        "application/pdf",
-        "image/png",
-        "image/jpeg",
-        "text/plain",
-      ]);
+      const mimeType = choice(
+        req.body.mimeType,
+        "file type",
+        own
+          ? ["application/pdf", "image/png", "image/jpeg"]
+          : ["application/pdf", "image/png", "image/jpeg", "text/plain"],
+      );
       const contentBase64 = text(req.body.contentBase64, "File", 2800000),
         bytes = Buffer.from(contentBase64, "base64");
       if (
@@ -611,12 +654,11 @@ export function createApp(store: Store, options: Options = {}) {
         name,
         mimeType,
         contentBase64,
-        category: choice(req.body.category, "category", [
-          "Contract",
-          "ID Proof",
-          "Certificate",
-          "Other",
-        ]),
+        category: choice(
+          req.body.category,
+          "category",
+          own ? ["ID Proof", "Certificate"] : ["Contract", "ID Proof", "Certificate", "Other"],
+        ),
         uploadDate: new Date().toISOString().slice(0, 10),
         size: `${Math.ceil(bytes.length / 1024)} KB`,
       });

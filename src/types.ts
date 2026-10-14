@@ -11,6 +11,7 @@ export interface Employee extends Versioned {
   status: "Active" | "On Leave" | "Suspended" | "Terminated";
   contact: string;
   hireDate: string;
+  onboarding?: import("./onboarding").OnboardingProfile;
   salary: {
     basic: number;
     hra: number;
@@ -115,15 +116,6 @@ export interface Appraisal extends Versioned {
   feedback: string;
   status: "Draft" | "Submitted" | "Approved";
   date: string;
-}
-
-export interface HRNotification {
-  id: string;
-  title: string;
-  message: string;
-  date: string;
-  type: "leave" | "payroll" | "document" | "general" | "recruitment";
-  read: boolean;
 }
 
 export interface EmailCampaign {

@@ -19,6 +19,7 @@ import type {
   AttendanceLog,
 } from "../../types";
 import { PersonAvatar } from "../PersonAvatar";
+import { AnimatedCounter } from "../AnimatedCounter";
 interface DashboardViewProps {
   canClock: boolean;
   staff: boolean;
@@ -224,7 +225,7 @@ export default function DashboardView({
                   <span>{metric.label}</span>
                   <metric.icon size={18} />
                 </span>
-                <strong>{metric.value.toString().padStart(2, "0")}</strong>
+                <strong><AnimatedCounter value={metric.value} /></strong>
                 <span className="metric-bottom">
                   <span>{metric.detail}</span>
                   {metric.tab !== "dashboard" && <ArrowUpRight size={16} />}

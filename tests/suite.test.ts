@@ -690,7 +690,7 @@ test("payroll requires reviewed inputs and different approver, freezes payslips 
   const slip = (
     await u.request(`/suite/payroll/${period.id}/payslip/${emp.id}`)
   ).data;
-  assert.match(slip, /INR 27300.00/);
+  assert.match(slip, /class="net-pay-amount">27300</);
   await u.request(
     `/suite/payroll/${period.id}/payslip/${hrEmp.id}`,
     "GET",

@@ -99,7 +99,7 @@ export default function LandingPage({
             </motion.button>
 
             <motion.button
-              whileHover={{ scale: 1.05, backgroundColor: "#4f46e5" }}
+              whileHover={{ scale: 1.05, backgroundColor: "#003f8a" }}
               whileTap={{ scale: 0.95 }}
               onClick={onEnterApp}
               className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-md shadow-indigo-500/10 flex items-center gap-1.5 hover:shadow-indigo-500/20 transition-all cursor-pointer"

@@ -10,6 +10,7 @@ import {
   LogOut,
   Building2,
   ArrowUpRight,
+  Bell,
 } from "lucide-react";
 import { BrandMark } from "./BrandMark";
 import { PersonAvatar } from "./PersonAvatar";
@@ -34,7 +35,12 @@ const groups = [
   },
 ];
 
+export type ShellNotice = { id: string; title: string; message: string; target: string };
+
 export function WorkspaceShell({
+  notices = [],
+  onNotice,
+  onDismissNotice,
   user,
   company,
   items,
@@ -49,6 +55,9 @@ export function WorkspaceShell({
   onLogout,
   children,
 }: {
+  notices?: ShellNotice[];
+  onNotice?: (notice: ShellNotice) => void;
+  onDismissNotice?: (id: string) => void;
   user: SessionUser;
   company: CompanySettings;
   items: NavItem[];
@@ -65,6 +74,7 @@ export function WorkspaceShell({
 }) {
   const drawer = useRef<HTMLDialogElement>(null);
   const [search, setSearch] = useState("");
+  const [bellOpen, setBellOpen] = useState(false);
   const role =
     user.accessRole === "owner"
       ? "Administrator"
@@ -199,6 +209,44 @@ export function WorkspaceShell({
               {busy ? "Saving…" : ""}
             </span>
 
+            <div style={{ position: "relative" }}>
+              <button
+                className="icon-button"
+                aria-label={`Notifications (${notices.length})`}
+                aria-expanded={bellOpen}
+                onClick={() => setBellOpen(!bellOpen)}
+              >
+                <Bell size={18} />
+                {notices.length > 0 && (
+                  <span
+                    aria-hidden="true"
+                    style={{ position: "absolute", top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 99, background: "#10B981", color: "#fff", fontSize: 10, fontWeight: 700, display: "grid", placeItems: "center" }}
+                  >
+                    {notices.length}
+                  </span>
+                )}
+              </button>
+              {bellOpen && (
+                <div
+                  role="dialog"
+                  aria-label="Notifications"
+                  style={{ position: "absolute", right: 0, top: "calc(100% + 8px)", width: 320, maxWidth: "85vw", background: "var(--surface-solid, #fff)", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "0 20px 40px rgba(0,63,138,0.08)", padding: 8, zIndex: 60 }}
+                >
+                  {notices.length ? (
+                    notices.map((n) => (
+                      <div key={n.id} style={{ padding: 10, borderBottom: "1px solid var(--line)" }}>
+                        <strong style={{ fontSize: 13 }}>{n.title}</strong>
+                        <p style={{ fontSize: 12, margin: "2px 0 6px" }}>{n.message}</p>
+                        <button className="text-action" onClick={() => { setBellOpen(false); onNotice?.(n); }}>View</button>{" "}
+                        <button className="text-action" onClick={() => onDismissNotice?.(n.id)}>Dismiss</button>
+                      </div>
+                    ))
+                  ) : (
+                    <p style={{ padding: 10, fontSize: 12 }}>No new notifications.</p>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="header-person">
               <PersonAvatar name={user.name} />
               <span>

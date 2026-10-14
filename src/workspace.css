@@ -1,38 +1,40 @@
 /* MCCIA workspace design. Brand assets and the linked web fonts are self-hosted. */
 :root {
-  --canvas: #f5f7f9;
-  --surface: #fff;
-  --surface-soft: #f8fafb;
-  --ink: #172d3c;
-  --muted: #526673;
-  --line: #e4eaee;
-  --brand: #146caa;
-  --brand-dark: #105887;
-  --brand-soft: #edf5fa;
-  --green: #258568;
-  --green-soft: #ebf5ee;
-  --focus: #61a4cd;
-  --display: "Poppins", "Segoe UI", sans-serif;
+  --canvas: #FFFFFF;
+  --surface: rgba(255, 255, 255, 0.7);
+  --surface-soft: #F8FAFC;
+  --ink: #0F172A;
+  --muted: #475569;
+  --line: rgba(226, 232, 240, 0.85);
+  --brand: #003F8A;
+  --brand-dark: #0056B3;
+  --brand-soft: rgba(0, 63, 138, 0.05);
+  --green: #10B981;
+  --green-soft: rgba(16, 185, 129, 0.06);
+  --focus: #0056B3;
+  --display: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-sans: "Outfit", "Inter", system-ui, sans-serif;
 }
 .dark {
   color-scheme: dark;
-  --canvas: #0d1720;
-  --surface: #14222e;
-  --surface-soft: #192a36;
-  --ink: #e5edf2;
-  --muted: #a0b1be;
-  --line: #2c3b48;
-  --brand: #78b5dc;
-  --brand-dark: #b2d8ef;
-  --brand-soft: #1c3549;
-  --green: #8cc9af;
-  --green-soft: #1c3931;
-  --focus: #9bcef0;
+  --canvas: #060913;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-soft: #060913;
+  --ink: #F8FAFC;
+  --muted: #475569;
+  --line: rgba(226, 232, 240, 0.1);
+  --brand: #003F8A;
+  --brand-dark: #0056B3;
+  --brand-soft: rgba(0, 63, 138, 0.15);
+  --green: #10B981;
+  --green-soft: rgba(16, 185, 129, 0.15);
+  --focus: #0056B3;
 }
 body {
   margin: 0;
   color: var(--ink);
-  background: var(--canvas);
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+  min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   font-family: var(--font-sans);
   font-size: 16px;
@@ -127,19 +129,77 @@ svg {
   display: inline-block;
   flex-shrink: 0;
 }
+@keyframes pageEntryFade {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .account-panel,
 .ui-panel {
   background: var(--surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 24px;
+  border-radius: 20px;
+  padding: clamp(1.5rem, 4vw, 2.2rem);
   color: var(--ink);
-  box-shadow: 0 2px 3px #16374d02;
+  box-shadow: 0 15px 40px -10px rgba(0,63,138,0.04);
   min-width: 0;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: pageEntryFade 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
-.dark .account-panel {
+
+.account-panel:nth-child(1), .ui-panel:nth-child(1) { animation-delay: 0.08s; }
+.account-panel:nth-child(2), .ui-panel:nth-child(2) { animation-delay: 0.16s; }
+.account-panel:nth-child(3), .ui-panel:nth-child(3) { animation-delay: 0.24s; }
+.account-panel:nth-child(4), .ui-panel:nth-child(4) { animation-delay: 0.32s; }
+.account-panel:nth-child(5), .ui-panel:nth-child(5) { animation-delay: 0.40s; }
+.account-panel:nth-child(n+6), .ui-panel:nth-child(n+6) { animation-delay: 0.48s; }
+
+.account-panel:hover,
+.ui-panel:hover {
+  transform: translateY(-5px);
+  background: rgba(255,255,255,0.95);
+  border-color: rgba(0,63,138,0.25);
+  box-shadow: 0 20px 40px rgba(0,63,138,0.08);
+}
+.dark .account-panel,
+.dark .ui-panel {
   background: var(--surface);
   border-color: var(--line);
+}
+.dark .account-panel:hover,
+.dark .ui-panel:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: var(--brand);
+}
+.accordion-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  overflow: hidden;
+  transition: border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.accordion-card.is-open {
+  border-color: rgba(0,63,138,0.3);
+}
+.accordion-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+.accordion-title {
+  font-weight: 600;
+  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.accordion-card.is-open .accordion-title {
+  color: var(--brand);
 }
 .account-field {
   display: flex;
@@ -156,15 +216,15 @@ svg {
   width: 100%;
   min-height: 43px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 10px 12px;
   background: var(--surface);
   color: var(--ink);
   font-size: 15px;
   font-weight: 400;
   transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .dark .account-field input,
 .dark .account-field select,
@@ -181,7 +241,8 @@ svg {
 .account-field select:focus,
 .account-field textarea:focus,
 .ui-input:focus {
-  border-color: var(--focus);
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(0,63,138,0.1);
 }
 .account-primary,
 .secondary-button {
@@ -189,36 +250,41 @@ svg {
   align-items: center;
   justify-content: center;
   gap: 9px;
-  padding: 11px 17px;
+  padding: 0.75rem 1.5rem;
   min-height: 42px;
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: 10px;
+  font-size: 0.85rem;
   font-weight: 600;
   line-height: 1.4;
   white-space: nowrap;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .account-primary {
-  background: #146caa;
+  background: linear-gradient(135deg, #003F8A 0%, #0056B3 100%);
   color: #fff;
-  border: 1px solid #146caa;
-  box-shadow: 0 2px 2px #146caa0c;
+  border: none;
+  box-shadow: 0 4px 15px rgba(0,63,138,0.15);
 }
 .account-primary:hover {
-  background: #105887;
-  border-color: #105887;
+  background: linear-gradient(135deg, #0056B3 0%, #003F8A 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0,63,138,0.25);
 }
 .account-primary:active,
 .secondary-button:active {
   transform: translateY(1px);
 }
 .secondary-button {
-  background: var(--surface);
-  color: var(--ink);
+  background: rgba(255,255,255,0.6);
+  backdrop-filter: blur(8px);
+  color: var(--muted);
   border: 1px solid var(--line);
 }
 .secondary-button:hover {
-  background: var(--surface-soft);
-  border-color: var(--focus);
+  background: rgba(255,255,255,0.9);
+  border-color: var(--brand);
+  color: var(--brand);
+  transform: translateY(-2px);
 }
 .text-action {
   display: inline-flex;
@@ -312,13 +378,20 @@ svg {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   line-height: 1.5;
-  border-radius: 5px;
-  padding: 4px 8px;
+  border-radius: 99px;
+  padding: 4px 10px;
   white-space: nowrap;
   font-family: var(--font-sans);
-  font-weight: 500;
+  border: 1px solid transparent;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.status-tag:hover {
+  transform: scale(1.05);
 }
 .status-tag i {
   width: 5px;
@@ -327,17 +400,19 @@ svg {
   background: currentColor;
 }
 .status-active {
-  background: var(--green-soft);
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.15);
   color: var(--green);
 }
 .status-pending {
-  background: #fcf3e2;
-  color: #8e631b;
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.15);
+  color: #EF4444;
 }
 .status-neutral {
-  background: var(--surface);
-  color: var(--muted);
-  border: 1px solid var(--line);
+  background: rgba(0, 63, 138, 0.05);
+  border-color: rgba(0, 63, 138, 0.12);
+  color: var(--brand);
 }
 .dark .status-pending {
   background: #3b311e;
@@ -835,8 +910,8 @@ svg {
   font-size: 12px;
 }
 .workspace-main {
-  padding: 24px 30px;
-  max-width: 1450px;
+  padding: 6.5rem 30px;
+  max-width: 1140px;
   margin: auto;
   outline: none;
 }
@@ -1758,7 +1833,7 @@ button.metric-card:hover {
     gap: 5px;
   }
   .workspace-main {
-    padding: 18px 14px;
+    padding: 4.5rem 14px;
   }
   .quick-access-grid {
     grid-template-columns: minmax(0, 1fr);

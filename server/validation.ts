@@ -5,6 +5,14 @@ import {
   employeeExtras,
   leaveDetails,
 } from "./suite-domain";
+import {
+  BANKS,
+  VERIFY_STATES,
+  digitsOnly,
+  onboardingIssues,
+  type OnboardingProfile,
+  type VerifyState,
+} from "../src/onboarding";
 export function text(
   value: unknown,
   label: string,
@@ -83,6 +91,71 @@ export function companySettings(body: any) {
     currency: "INR",
   };
 }
+/** Rebuilds the onboarding profile from known fields only, then applies format checks. */
+export function cleanOnboarding(raw: any): OnboardingProfile {
+  const s = (v: unknown, max = 200) =>
+    typeof v === "string" ? v.trim().slice(0, max) : "";
+  const list = (v: unknown, n = 20): any[] => (Array.isArray(v) ? v.slice(0, n) : []);
+  const state = (v: unknown): VerifyState =>
+    VERIFY_STATES.includes(v as VerifyState) ? (v as VerifyState) : "Pending";
+  const profile: OnboardingProfile = {
+    firstName: s(raw.firstName, 80),
+    middleName: s(raw.middleName, 80),
+    lastName: s(raw.lastName, 80),
+    gender: s(raw.gender, 40),
+    dob: s(raw.dob, 10),
+    personalEmail: s(raw.personalEmail, 254).toLowerCase(),
+    currentAddress: s(raw.currentAddress, 500),
+    currentPin: s(raw.currentPin, 6),
+    permanentAddress: s(raw.permanentAddress, 500),
+    permanentPin: s(raw.permanentPin, 6),
+    mobile: s(raw.mobile, 20),
+    emergency: list(raw.emergency, 2).map((c) => ({
+      name: s(c?.name, 120),
+      relation: s(c?.relation, 60),
+      phone: s(c?.phone, 20),
+    })),
+    bloodGroup: s(raw.bloodGroup, 5),
+    bankUsed: list(raw.bankUsed, 3).filter((b) => BANKS.includes(b)),
+    pan: s(raw.pan, 10).toUpperCase(),
+    aadhaar: digitsOnly(s(raw.aadhaar, 20)),
+    uan: digitsOnly(s(raw.uan, 20)),
+    maritalStatus: s(raw.maritalStatus, 40),
+    family: list(raw.family).map((f) => ({
+      name: s(f?.name, 120),
+      relation: s(f?.relation, 60),
+      dependent: f?.dependent === true,
+    })),
+    education: list(raw.education).map((q) => ({
+      degree: s(q?.degree, 120),
+      institution: s(q?.institution, 160),
+      year: s(q?.year, 4),
+    })),
+    experience: list(raw.experience).map((x) => ({
+      company: s(x?.company, 160),
+      role: s(x?.role, 120),
+      from: s(x?.from, 10),
+      to: s(x?.to, 10),
+    })),
+    projects: list(raw.projects).map((x) => ({
+      name: s(x?.name, 160),
+      role: s(x?.role, 120),
+      summary: s(x?.summary, 1000),
+    })),
+    health: s(raw.health, 1000),
+    verification: {
+      pan: state(raw.verification?.pan),
+      aadhaar: state(raw.verification?.aadhaar),
+      panNote: s(raw.verification?.panNote, 300),
+      aadhaarNote: s(raw.verification?.aadhaarNote, 300),
+    },
+  };
+  while (profile.emergency.length < 2)
+    profile.emergency.push({ name: "", relation: "", phone: "" });
+  const issue = Object.values(onboardingIssues(profile))[0];
+  if (issue) throw new HttpError(400, issue);
+  return profile;
+}
 /** Allowlisted input only: identities, durations, dates and status transitions are server-owned. */
 export async function validateRecord(
   store: Store,
@@ -111,8 +184,29 @@ export async function validateRecord(
           400,
           "Profile image must use an HTTP or HTTPS URL.",
         );
+      const onboarding = body.onboarding
+        ? cleanOnboarding(body.onboarding)
+        : existing?.onboarding;
+      if (onboarding && existing) {
+        const newlyVerified = (["pan", "aadhaar"] as const).some(
+          (k) =>
+            onboarding.verification[k] === "Verified" &&
+            existing.onboarding?.verification?.[k] !== "Verified",
+        );
+        if (
+          newlyVerified &&
+          !(await store.list(actor.orgId, "documents")).some(
+            (d: any) => d.employeeId === existing.id && d.category === "ID Proof",
+          )
+        )
+          throw new HttpError(
+            400,
+            "Upload and review an ID Proof document before marking Aadhaar or PAN as verified.",
+          );
+      }
       return {
         ...(await employeeExtras(store, actor, body, existing)),
+        onboarding,
         name: text(body.name, "Name"),
         email: email(body.email),
         role: text(body.role, "Designation"),

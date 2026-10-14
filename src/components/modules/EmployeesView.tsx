@@ -18,8 +18,12 @@ import {
   ArrowRight,
   ArrowUpRight,
 } from "lucide-react";
-import { Employee } from "../../types";
+import { Employee, EmployeeDocument } from "../../types";
 import { PersonAvatar } from "../PersonAvatar";
+import OnboardingForm from "../OnboardingForm";
+import DocumentUpload from "../DocumentUpload";
+import OnboardingDetails from "../OnboardingDetails";
+import { awaitingVerification, emptyOnboarding, maskAadhaar, onboardingCsv } from "../../onboarding";
 
 interface EmployeesViewProps {
   suiteSettings?: any;
@@ -28,6 +32,8 @@ interface EmployeesViewProps {
   onAddEmployee: (emp: Omit<Employee, "id">) => Promise<boolean>;
   onUpdateEmployee: (emp: Employee) => Promise<boolean>;
   onDeleteEmployee: (id: string) => Promise<boolean>;
+  documents?: EmployeeDocument[];
+  onAddDocument?: (doc: any) => Promise<boolean>;
 }
 
 export default function EmployeesView({
@@ -37,11 +43,14 @@ export default function EmployeesView({
   onAddEmployee,
   onUpdateEmployee,
   onDeleteEmployee,
+  documents = [],
+  onAddDocument,
 }: EmployeesViewProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDept, setSelectedDept] = useState("All");
   const [selectedStatus, setSelectedStatus] = useState("All");
   const [selectedEmp, setSelectedEmp] = useState<Employee | null>(null);
+  const [pendingOnly, setPendingOnly] = useState(false);
 
   // Modals / Form toggles
   const [showAddForm, setShowAddForm] = useState(false);
@@ -82,9 +91,47 @@ export default function EmployeesView({
     return (
       matchesSearch &&
       matchesDept &&
+      (!pendingOnly || awaitingVerification(emp.onboarding).length > 0) &&
       (selectedStatus === "All" || emp.status === selectedStatus)
     );
   });
+
+  const downloadSummary = (emp: Employee) => {
+    const ob = emp.onboarding || emptyOnboarding();
+    const esc = (v: string) => v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+    const rows: [string, string][] = [
+      ["Employee", `${emp.name} (${emp.id})`],
+      ["Role", `${emp.role}, ${emp.department}`],
+      ["Hire date", emp.hireDate],
+      ["Legal name", [ob.firstName, ob.middleName, ob.lastName].filter(Boolean).join(" ")],
+      ["Gender", ob.gender],
+      ["Date of birth", ob.dob],
+      ["Personal email", ob.personalEmail],
+      ["Mobile", ob.mobile],
+      ["Marital status", ob.maritalStatus],
+      ["Blood group", ob.bloodGroup],
+      ["Aadhaar", `${maskAadhaar(ob.aadhaar) || "Not provided"} — ${ob.verification.aadhaar}`],
+      ["PAN", `${ob.pan || "Not provided"} — ${ob.verification.pan}`],
+      ["EPF UAN", ob.uan],
+      ["Current address", [ob.currentAddress, ob.currentPin].filter(Boolean).join(" - ")],
+      ["Permanent address", [ob.permanentAddress, ob.permanentPin].filter(Boolean).join(" - ")],
+      ["Emergency contacts", ob.emergency.filter((c) => c.name || c.phone).map((c) => `${c.name} (${c.relation}) ${c.phone}`).join("; ")],
+      ["Banks", ob.bankUsed.join(", ")],
+      ["Family", ob.family.map((f) => `${f.name} (${f.relation}, ${f.dependent ? "dependent" : "non-dependent"})`).join("; ")],
+      ["Education", ob.education.map((q) => `${q.degree}, ${q.institution} ${q.year}`).join("; ")],
+      ["Experience", ob.experience.map((x) => `${x.role} at ${x.company} (${x.from} to ${x.to})`).join("; ")],
+      ["Projects", ob.projects.map((x) => `${x.name} — ${x.role}`).join("; ")],
+      ["Health", ob.health],
+      ["Documents on file", documents.filter((d) => d.employeeId === emp.id).map((d) => d.name).join(", ")],
+    ];
+    const html = `<!doctype html><meta charset="utf-8"><title>Onboarding summary - ${esc(emp.name)}</title><style>body{font-family:Outfit,system-ui,sans-serif;max-width:760px;margin:2rem auto;color:#0f172a}h1{color:#003f8a}td{padding:6px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top}td:first-child{color:#64748b;width:200px}</style><h1>Onboarding summary</h1><table>${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v || "—")}</td></tr>`).join("")}</table><p style="color:#64748b;font-size:12px">Generated ${new Date().toLocaleDateString("en-IN")}. Aadhaar is masked. Verification status reflects format checks and admin review.</p>`;
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `onboarding-${emp.name.replace(/\s+/g, "-")}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleOpenAdd = () => {
     setExtras({
@@ -242,7 +289,13 @@ export default function EmployeesView({
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-4">
+              <button
+                onClick={() => downloadSummary(selectedEmp)}
+                className="w-full py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white"
+              >
+                Generate onboarding summary
+              </button>
+              <div className="flex gap-2 pt-2">
                 <button
                   onClick={() => handleOpenEdit(selectedEmp)}
                   className="flex-1 py-2 rounded-lg bg-slate-100 dark:bg-slate-950 hover:bg-slate-200 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 transition-all flex items-center justify-center gap-1"
@@ -266,6 +319,64 @@ export default function EmployeesView({
 
             {/* Right Column: Financial Structure & Analytics */}
             <div className="lg:col-span-2 space-y-6">
+              <OnboardingDetails
+                value={selectedEmp.onboarding}
+                onDecide={async (kind, state, note) => {
+                  const ob = selectedEmp.onboarding || emptyOnboarding();
+                  const next = {
+                    ...selectedEmp,
+                    onboarding: {
+                      ...ob,
+                      verification: {
+                        ...ob.verification,
+                        [kind]: state,
+                        [kind + "Note"]: note,
+                      },
+                    },
+                  };
+                  if (await onUpdateEmployee(next)) setSelectedEmp(null);
+                }}
+              />
+              {/* Onboarding Checklist Status */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm dark:shadow-none">
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white pb-3 border-b border-slate-100 dark:border-slate-800/60 mb-4">
+                  Onboarding Milestones
+                </h4>
+                <div className="space-y-3">
+                  {[
+                    { milestone: "Onboarding profile completed", done: !!selectedEmp.onboarding },
+                    { milestone: "Aadhaar verified", done: selectedEmp.onboarding?.verification.aadhaar === "Verified" },
+                    { milestone: "PAN verified", done: selectedEmp.onboarding?.verification.pan === "Verified" },
+                    { milestone: "ID proof document uploaded", done: documents.some((d) => d.employeeId === selectedEmp.id && d.category === "ID Proof") },
+                  ].map((m, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between text-xs"
+                    >
+                      <span className="text-slate-600 dark:text-slate-300">
+                        {m.milestone}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold ${
+                          m.done
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                            : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                        }`}
+                      >
+                        {m.done ? "Done" : "Pending"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {onAddDocument && (
+                <DocumentUpload
+                  documents={documents.filter((d) => d.employeeId === selectedEmp.id)}
+                  categories={["ID Proof", "Certificate", "Contract", "Other"]}
+                  onUpload={(doc) => onAddDocument({ ...doc, employeeId: selectedEmp.id })}
+                />
+              )}
               {/* Salary Structure Card */}
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm dark:shadow-none">
                 <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/60 pb-4 mb-4">
@@ -334,42 +445,6 @@ export default function EmployeesView({
                   </span>
                 </div>
               </div>
-
-              {/* Onboarding Checklist Status */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm dark:shadow-none">
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white pb-3 border-b border-slate-100 dark:border-slate-800/60 mb-4">
-                  Onboarding Milestones
-                </h4>
-                <div className="space-y-3">
-                  {[
-                    { milestone: "Signed Employment Contract", done: false },
-                    {
-                      milestone: "Provision Company Laptop & Gear",
-                      done: false,
-                    },
-                    { milestone: "HR Welcome Onboarding Sync", done: false },
-                    { milestone: "Generate Identity Card", done: false },
-                  ].map((m, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between text-xs"
-                    >
-                      <span className="text-slate-600 dark:text-slate-300">
-                        {m.milestone}
-                      </span>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold ${
-                          m.done
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                            : "bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse"
-                        }`}
-                      >
-                        Not tracked yet
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -403,6 +478,30 @@ export default function EmployeesView({
             <span>
               <strong>{departments.length - 1}</strong> departments
             </span>
+          </div>
+          <div className="flex flex-wrap gap-2 mb-3 text-xs">
+            <button
+              className={pendingOnly ? "account-primary" : "secondary-button"}
+              onClick={() => setPendingOnly(!pendingOnly)}
+            >
+              Pending verification (
+              {employees.filter((e) => awaitingVerification(e.onboarding).length).length})
+            </button>
+            <button
+              className="secondary-button"
+              onClick={() => {
+                const url = URL.createObjectURL(
+                  new Blob([onboardingCsv(filteredEmployees)], { type: "text/csv;charset=utf-8" }),
+                );
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = "onboarding-export.csv";
+                link.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              Export onboarding (Excel/CSV)
+            </button>
           </div>
           <section className="ui-panel directory-panel">
             <div className="directory-toolbar">
@@ -818,6 +917,10 @@ export default function EmployeesView({
                   </label>
                 ))}
               </div>
+              <OnboardingForm
+                value={extras.onboarding || emptyOnboarding()}
+                onChange={(onboarding) => setExtras({ ...extras, onboarding })}
+              />
               {/* Salary Configuration Block */}
               <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-3">
                 <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">

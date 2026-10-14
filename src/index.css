@@ -3,35 +3,35 @@
 @variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "Lato", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Poppins", "Segoe UI", sans-serif;
+  --font-sans: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", SFMono-Regular, monospace;
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.5;
   --text-sm: 0.9375rem;
   --text-sm--line-height: 1.5;
-  --color-indigo-50: #edf5fa;
-  --color-indigo-100: #daeaf5;
-  --color-indigo-200: #b8d8eb;
-  --color-indigo-300: #89bcda;
-  --color-indigo-400: #5b9dc7;
-  --color-indigo-500: #2980b8;
-  --color-indigo-600: #146caa;
-  --color-indigo-700: #105887;
-  --color-indigo-800: #10496e;
-  --color-indigo-900: #103b56;
-  --color-indigo-950: #0c263a;
-  --color-purple-50: #edf5fa;
-  --color-purple-100: #daeaf5;
-  --color-purple-200: #b8d8eb;
-  --color-purple-300: #89bcda;
-  --color-purple-400: #5b9dc7;
-  --color-purple-500: #2980b8;
-  --color-purple-600: #146caa;
-  --color-purple-700: #105887;
-  --color-purple-800: #10496e;
-  --color-purple-900: #103b56;
-  --color-purple-950: #0c263a;
+  --color-indigo-50: #eef4fb;
+  --color-indigo-100: #dce8f6;
+  --color-indigo-200: #b9d1ee;
+  --color-indigo-300: #86adde;
+  --color-indigo-400: #4a82c7;
+  --color-indigo-500: #0056b3;
+  --color-indigo-600: #003f8a;
+  --color-indigo-700: #003370;
+  --color-indigo-800: #002856;
+  --color-indigo-900: #001e40;
+  --color-indigo-950: #001229;
+  --color-purple-50: #eef4fb;
+  --color-purple-100: #dce8f6;
+  --color-purple-200: #b9d1ee;
+  --color-purple-300: #86adde;
+  --color-purple-400: #4a82c7;
+  --color-purple-500: #0056b3;
+  --color-purple-600: #003f8a;
+  --color-purple-700: #003370;
+  --color-purple-800: #002856;
+  --color-purple-900: #001e40;
+  --color-purple-950: #001229;
 }
 
 /* MCCIA links Lato and Poppins on its homepage. Use the downloaded fonts
@@ -104,14 +104,31 @@ button {
 
 /* Shared accessible controls for account and saved-record workflows. */
 .account-panel {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 24px;
+  background: var(--surface);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 2.2rem;
+  box-shadow: 0 15px 40px -10px rgba(0, 63, 138, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.account-panel:hover {
+  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 63, 138, 0.25);
+  box-shadow: 0 20px 40px rgba(0, 63, 138, 0.08);
 }
 .dark .account-panel {
-  background: #0f172a;
-  border-color: #1e293b;
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(226, 232, 240, 0.1);
+}
+.dark .account-panel:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+@media (max-width: 640px) {
+  .account-panel {
+    padding: 1.5rem;
+  }
 }
 .account-field {
   display: flex;
@@ -124,34 +141,38 @@ button {
 .account-field select,
 .account-field textarea {
   width: 100%;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
   padding: 10px 12px;
   font-weight: 400;
-  color: #0f172a;
-  background: white;
+  color: var(--ink);
+  background: #fff;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .dark .account-field input,
 .dark .account-field select,
 .dark .account-field textarea {
-  background: #020617;
-  color: #f1f5f9;
-  border-color: #334155;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f8fafc;
+  border-color: rgba(226, 232, 240, 0.1);
 }
 .account-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: #146caa;
+  background: linear-gradient(135deg, #003f8a 0%, #0056b3 100%);
   color: white;
-  padding: 11px 16px;
-  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 15px rgba(0, 63, 138, 0.15);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .account-primary:hover {
-  background: #003961;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 63, 138, 0.25);
 }
 button:disabled,
 fieldset:disabled {
@@ -172,8 +193,9 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid #818cf8;
-  outline-offset: 3px;
+  outline: none;
+  border-color: #003f8a;
+  box-shadow: 0 0 0 3px rgba(0, 63, 138, 0.1);
 }
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -181,6 +203,8 @@ textarea:focus-visible {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    animation-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
 }

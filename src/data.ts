@@ -7,7 +7,6 @@ import {
   Candidate, 
   Asset, 
   Appraisal, 
-  HRNotification, 
   EmailCampaign 
 } from './types';
 
@@ -31,7 +30,6 @@ export const initialAssets: Asset[] = [];
 
 export const initialAppraisals: Appraisal[] = [];
 
-export const initialNotifications: HRNotification[] = [];
 
 // Default outbound email campaign templates. These are reusable message
 // templates (not employee data), so they're kept as sensible defaults
