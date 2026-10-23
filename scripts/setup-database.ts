@@ -1,6 +1,9 @@
 import dotenv from "dotenv";
 import { connectPostgresDatabase } from "../server/postgres";
-import { initializeCloudDemo } from "../server/cloud-setup";
+import {
+  initializeCloudDemo,
+  initializeCloudProduction,
+} from "../server/cloud-setup";
 dotenv.config({ path: [".env.local", ".env"], quiet: true });
 
 const isDemoDeployment = process.argv.includes("--demo-deployment");
@@ -10,19 +13,17 @@ const hasDbUrl = Boolean(
     process.env.SUPABASE_DB_URL?.trim(),
 );
 
-if (isDemoDeployment) {
-  if (process.env.DEMO_LOGIN_ENABLED !== "true") {
+if (!hasDbUrl) {
+  if (isDemoDeployment) {
     console.log(
-      "Demo deployment setup skipped: DEMO_LOGIN_ENABLED is not set to 'true'.",
+      "Database setup skipped: DATABASE_URL is not configured in environment.",
     );
     process.exit(0);
   }
-  if (!hasDbUrl) {
-    console.log(
-      "Demo deployment setup skipped: DATABASE_URL is not configured.",
-    );
-    process.exit(0);
-  }
+  console.error(
+    "Cannot setup database: DATABASE_URL (or DATABASE_URL_UNPOOLED) is not set in environment or .env.local.",
+  );
+  process.exit(1);
 }
 
 let db: ReturnType<typeof connectPostgresDatabase> | undefined;
@@ -32,7 +33,12 @@ try {
     DATABASE_URL:
       process.env.DATABASE_URL_UNPOOLED?.trim() || process.env.DATABASE_URL,
   });
-  console.log(await initializeCloudDemo(db));
+
+  if (process.env.DEMO_LOGIN_ENABLED === "true") {
+    console.log(await initializeCloudDemo(db));
+  } else {
+    console.log(await initializeCloudProduction(db));
+  }
 } catch {
   console.error(
     "Database setup failed. Check DATABASE_URL (or DATABASE_URL_UNPOOLED for setup), the database password, TLS certificate and project status. No credentials were printed.",
@@ -40,9 +46,10 @@ try {
   if (!isDemoDeployment) {
     process.exitCode = 1;
   } else {
-    console.warn("Continuing deployment build without demo database seeding.");
+    console.warn("Continuing deployment build without database initialization.");
   }
 } finally {
   await db?.close();
 }
+
 

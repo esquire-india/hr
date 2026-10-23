@@ -4,6 +4,8 @@ import { configuredMailer } from "./integrations";
 import { openCloudStore } from "./cloud-store";
 import type { Store } from "./store";
 
+import { provisionAdminAccounts } from "./admin-provision";
+
 export function vercelOrigin(env: NodeJS.ProcessEnv) {
   const raw =
     env.APP_URL || (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : "");
@@ -35,10 +37,13 @@ export function createVercelHandler(
     try {
       const appUrl = vercelOrigin(env);
       store = await openStore();
+      await provisionAdminAccounts(store).catch((err) => {
+        console.error("Admin auto-provisioning error:", err);
+      });
       return createApp(store, {
         appUrl,
         secureCookies: true,
-        registrationOpen: false,
+        registrationOpen: env.REGISTRATION_OPEN !== "false",
         demoLoginEnabled: env.DEMO_LOGIN_ENABLED === "true",
         mailer: configuredMailer(),
       });

@@ -48,3 +48,14 @@ export async function initializeCloudDemo(target: AsyncDatabase) {
     return "Cloud database initialized with fictional samples and Admin, HR and Employee demo accounts.";
   });
 }
+
+export async function initializeCloudProduction(target: AsyncDatabase) {
+  return target.transaction(async () => {
+    await target.exec("SELECT pg_advisory_xact_lock(739214, 1)");
+    await target.exec(readFileSync(resolve("database/schema.sql"), "utf8"));
+    if (await target.prepare("SELECT 1 FROM organizations LIMIT 1").get())
+      return "Existing production workspace preserved; schema up to date.";
+    return "Cloud database schema initialized successfully for production (clean database, ready for company registration).";
+  });
+}
+
