@@ -43,7 +43,7 @@ export function createVercelHandler(
       return createApp(store, {
         appUrl,
         secureCookies: true,
-        registrationOpen: env.REGISTRATION_OPEN !== "false",
+        registrationOpen: env.REGISTRATION_OPEN === "true",
         demoLoginEnabled: env.DEMO_LOGIN_ENABLED === "true",
         mailer: configuredMailer(),
       });
@@ -62,7 +62,7 @@ export function createVercelHandler(
       return app(req, res);
     } catch {
       console.error(
-        "Vercel API initialization failed. Check DATABASE_URL and database setup.",
+        "Vercel API initialization failed. Check Neon DATABASE_URL and database setup.",
       );
       res.statusCode = 503;
       res.setHeader("Cache-Control", "no-store");
@@ -70,9 +70,10 @@ export function createVercelHandler(
       return res.end(
         JSON.stringify({
           error:
-            "The cloud database is not connected yet. Complete the server database setup and try again.",
+            "Neon database is not connected yet. Please configure DATABASE_URL with your Neon PostgreSQL connection string.",
         }),
       );
     }
   };
 }
+

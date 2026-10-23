@@ -23,7 +23,7 @@ try {
     assert.equal(response.headers.get("cache-control"), "no-store");
     assert.deepEqual(await response.json(), {
       error:
-        "The cloud database is not connected yet. Complete the server database setup and try again.",
+        "Neon database is not connected yet. Please configure DATABASE_URL with your Neon PostgreSQL connection string.",
     });
   }
   console.log(
