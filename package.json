@@ -18,6 +18,7 @@
     "lint": "tsc --noEmit",
     "setup:supabase": "npm run setup:database",
     "test:postgres": "node scripts/test-postgres.cjs",
+    "test:smtp": "tsx scripts/test-smtp.ts",
     "setup:database": "tsx scripts/setup-database.ts",
     "setup:neon": "npm run setup:database",
     "build:vercel": "npm run build && npm run setup:database -- --demo-deployment"

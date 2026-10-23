@@ -477,7 +477,24 @@ export default function App() {
               employees={employees}
               emailLogs={emailLogs}
               mailConfigured={workspace.mailConfigured}
+              company={company}
               onSend={(data) => mutate("/email/send", "POST", data)}
+              onSendMass={(data) => mutate("/email/send-mass", "POST", data)}
+              onGenerateEmail={async (topic, tone) => {
+                const res = await fetch("/api/email/generate", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "X-HRStudio-Request": "1",
+                  },
+                  body: JSON.stringify({ topic, tone }),
+                });
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({}));
+                  throw new Error(err.error || "Failed to generate email content");
+                }
+                return await res.json();
+              }}
             />
           )}
         </fieldset>

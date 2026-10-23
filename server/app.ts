@@ -25,7 +25,7 @@ import {
   validateRecord,
 } from "./validation";
 import { missingRequired } from "../src/onboarding";
-import { evaluateResume, type Mail } from "./integrations";
+import { evaluateResume, generateEmailContent, type Mail } from "./integrations";
 import { registerSuite } from "./suite";
 import { registerIntegrationEvents } from "./integration-events";
 import { config, requireModule } from "./suite-domain";
@@ -61,6 +61,75 @@ function loginPassword(value: unknown) {
   if (typeof value !== "string" || !value.length || value.length > 128)
     throw new HttpError(400, "Enter your password.");
   return value;
+}
+export async function resolveEmailCc(
+  store: Store,
+  orgId: string,
+  emp: any,
+): Promise<string[]> {
+  const ccEmails = new Set<string>();
+
+  // 1. Reporting Manager
+  if (emp.managerId) {
+    try {
+      const mgr = await store.get(orgId, "employees", emp.managerId);
+      if (mgr?.email && typeof mgr.email === "string" && mgr.email.includes("@")) {
+        ccEmails.add(mgr.email.trim().toLowerCase());
+      }
+    } catch {}
+  }
+
+  // 2. Director (Priority: env CC_DIRECTOR_EMAIL -> owner user account)
+  const envDirector = (process.env.CC_DIRECTOR_EMAIL || process.env.DIRECTOR_EMAIL)?.trim();
+  if (envDirector && envDirector.includes("@")) {
+    ccEmails.add(envDirector.toLowerCase());
+  } else {
+    try {
+      const ownerRow = (await store.db
+        .prepare("SELECT email FROM users WHERE org_id=? AND role='owner' AND active=1")
+        .get(orgId)) as { email?: string } | undefined;
+      if (ownerRow?.email && typeof ownerRow.email === "string" && ownerRow.email.includes("@")) {
+        ccEmails.add(ownerRow.email.trim().toLowerCase());
+      }
+    } catch {}
+  }
+
+  // 3. Accounts (Priority: env CC_ACCOUNTS_EMAIL -> accounts department/employee)
+  const envAccounts = (process.env.CC_ACCOUNTS_EMAIL || process.env.ACCOUNTS_EMAIL)?.trim();
+  if (envAccounts && envAccounts.includes("@")) {
+    ccEmails.add(envAccounts.toLowerCase());
+  }
+
+  // Check employees for Director and Accounts if still missing
+  try {
+    const allEmployees = await store.list(orgId, "employees");
+    let hasDirector = Boolean(envDirector);
+    let hasAccounts = Boolean(envAccounts);
+    for (const e of allEmployees) {
+      if (e.status && e.status !== "Active") continue;
+      const title = String(e.title || e.role || "").toLowerCase();
+      const dept = String(e.department || "").toLowerCase();
+      if (!hasDirector && (title.includes("director") || title.includes("managing director") || title.includes("md"))) {
+        if (e.email && typeof e.email === "string" && e.email.includes("@")) {
+          ccEmails.add(e.email.trim().toLowerCase());
+          hasDirector = true;
+        }
+      }
+      if (!hasAccounts && (dept === "accounts" || dept === "finance" || title.includes("accountant") || title.includes("accounts"))) {
+        if (e.email && typeof e.email === "string" && e.email.includes("@")) {
+          ccEmails.add(e.email.trim().toLowerCase());
+          hasAccounts = true;
+        }
+      }
+    }
+  } catch {}
+
+  // Exclude primary recipient from CC
+  if (emp.email && typeof emp.email === "string") {
+    ccEmails.delete(emp.email.trim().toLowerCase());
+  }
+
+  return Array.from(ccEmails);
 }
 export function createApp(store: Store, options: Options = {}) {
   const app = express(),
@@ -200,9 +269,22 @@ export function createApp(store: Store, options: Options = {}) {
       );
       if (!row || !valid)
         throw new HttpError(401, "Workspace, email or password is incorrect.");
+      // Auto-promote designated admin emails to 'hr' role
+      const adminEmails = (process.env.ADMIN_EMAILS || "")
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean);
+      if (adminEmails.includes(address.toLowerCase()) && String(row.role) !== "owner") {
+        await store.db
+          .prepare("UPDATE users SET role='hr', must_change=0 WHERE id=?")
+          .run(String(row.id));
+        (row as any).role = "hr";
+        (row as any).must_change = 0;
+      }
       const actor = actorFrom(row);
       await createSession(store, res, actor.id, secure);
       res.json({ user: actor, company: await store.company(actor.orgId) });
+
     }),
   );
   registerIntegrationEvents(app, store);
@@ -713,11 +795,17 @@ export function createApp(store: Store, options: Options = {}) {
         "Work Anniversary",
         "Payslip",
         "General Notice",
+        "Diwali & Festivals",
+        "Holiday Update",
+        "Company Circular",
+        "Event Announcement",
       ]);
+      const ccList = await resolveEmailCc(store, actor.orgId, emp);
       const log = await store.save(actor, "emailLogs", {
         employeeId: emp.id,
         employeeName: emp.name,
         recipientEmail: emp.email,
+        cc: ccList,
         subject,
         body,
         campaignType,
@@ -727,6 +815,7 @@ export function createApp(store: Store, options: Options = {}) {
       try {
         await options.mailer({
           recipient: emp.email,
+          cc: ccList,
           subject,
           body,
           companyName: (await store.company(actor.orgId)).name,
@@ -753,6 +842,123 @@ export function createApp(store: Store, options: Options = {}) {
           log.version,
         ),
       );
+    }),
+  );
+  app.post(
+    "/api/email/generate",
+    requireStaff,
+    rateLimit(30, 60000),
+    route(async (req, res) => {
+      const actor: Actor = res.locals.actor;
+      const topic = text(req.body.topic, "Topic", 1000);
+      const tone = req.body.tone ? String(req.body.tone).slice(0, 100) : "warm and professional";
+      const company = await store.company(actor.orgId);
+      const generated = await generateEmailContent(topic, tone, company.name);
+      res.json(generated);
+    }),
+  );
+  app.post(
+    "/api/email/send-mass",
+    requireStaff,
+    rateLimit(10, 60000),
+    route(async (req, res) => {
+      if (!options.mailer)
+        throw new HttpError(
+          503,
+          "Email delivery is not configured. Configure your Zoho SMTP settings in .env.local to send emails.",
+        );
+      const actor: Actor = res.locals.actor;
+      const subject = text(req.body.subject, "Subject", 200);
+      const rawBody = text(req.body.body, "Message body", 15000);
+      const campaignType = choice(req.body.campaignType, "message type", [
+        "Birthday",
+        "Work Anniversary",
+        "Payslip",
+        "General Notice",
+        "Diwali & Festivals",
+        "Holiday Update",
+        "Company Circular",
+        "Event Announcement",
+      ]);
+      const departmentFilter = req.body.department ? String(req.body.department).trim() : "all";
+
+      const allEmployees = await store.list(actor.orgId, "employees");
+      const activeEmployees = allEmployees.filter((e) => {
+        if (e.status && e.status !== "Active") return false;
+        if (!e.email || !e.email.includes("@")) return false;
+        if (departmentFilter !== "all" && departmentFilter !== "" && e.department !== departmentFilter) {
+          return false;
+        }
+        return true;
+      });
+
+      if (!activeEmployees.length) {
+        throw new HttpError(400, "No active employees found matching the selected audience.");
+      }
+
+      const company = await store.company(actor.orgId);
+      let sentCount = 0;
+      let failedCount = 0;
+      const logs = [];
+
+      for (const emp of activeEmployees) {
+        const personalizedBody = rawBody
+          .replace(/\{name\}/gi, emp.name)
+          .replace(/\{employeeName\}/gi, emp.name)
+          .replace(/\{companyName\}/gi, company.name)
+          .replace(/\{department\}/gi, emp.department || "")
+          .replace(/\{title\}/gi, emp.title || "");
+
+        const ccList = await resolveEmailCc(store, actor.orgId, emp);
+
+        let log = await store.save(actor, "emailLogs", {
+          employeeId: emp.id,
+          employeeName: emp.name,
+          recipientEmail: emp.email,
+          cc: ccList,
+          subject,
+          body: personalizedBody,
+          campaignType,
+          status: "Queued",
+          timestamp: new Date().toISOString(),
+        });
+
+        try {
+          await options.mailer({
+            recipient: emp.email,
+            cc: ccList,
+            subject,
+            body: personalizedBody,
+            companyName: company.name,
+          });
+          log = await store.save(
+            actor,
+            "emailLogs",
+            { ...log, status: "Accepted" },
+            log.id,
+            log.version,
+          );
+          sentCount++;
+        } catch {
+          log = await store.save(
+            actor,
+            "emailLogs",
+            { ...log, status: "Failed" },
+            log.id,
+            log.version,
+          );
+          failedCount++;
+        }
+        logs.push(log);
+      }
+
+      res.json({
+        ok: true,
+        sentCount,
+        failedCount,
+        total: activeEmployees.length,
+        logs,
+      });
     }),
   );
   app.post(

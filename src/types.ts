@@ -11,6 +11,8 @@ export interface Employee extends Versioned {
   status: "Active" | "On Leave" | "Suspended" | "Terminated";
   contact: string;
   hireDate: string;
+  managerId?: string;
+  title?: string;
   onboarding?: import("./onboarding").OnboardingProfile;
   salary: {
     basic: number;
@@ -139,7 +141,16 @@ export interface EmailLog extends Versioned {
   employeeId: string;
   employeeName: string;
   recipientEmail: string;
-  campaignType: "Birthday" | "Work Anniversary" | "Payslip" | "General Notice";
+  cc?: string[];
+  campaignType:
+    | "Birthday"
+    | "Work Anniversary"
+    | "Payslip"
+    | "General Notice"
+    | "Diwali & Festivals"
+    | "Holiday Update"
+    | "Company Circular"
+    | "Event Announcement";
   subject: string;
   body: string;
   status: "Queued" | "Accepted" | "Failed";
